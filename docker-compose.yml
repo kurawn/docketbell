@@ -1,0 +1,66 @@
+x-app: &app
+  build: .
+  environment: &app-env
+    DEBUG: "1"
+    POSTGRES_HOST: db
+    REDIS_URL: redis://redis:6379/0
+  volumes:
+    - .:/app
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: docketbell
+      POSTGRES_USER: docketbell
+      POSTGRES_PASSWORD: docketbell
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docketbell -d docketbell"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+
+  api:
+    <<: *app
+    command: ./entrypoint.sh
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    <<: *app
+    command: celery -A config worker -Q default,sandbox --concurrency 4 -l info
+    depends_on:
+      api:
+        condition: service_healthy
+
+  beat:
+    <<: *app
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
+    depends_on:
+      api:
+        condition: service_healthy
+
+  provider:
+    <<: *app
+    environment:
+      <<: *app-env
+      ROOT_URLCONF: config.urls_sandbox
+    command: gunicorn config.wsgi --bind 0.0.0.0:8001 --workers 2 --threads 8 --access-logfile -
+    ports:
+      - "8001:8001"
+    depends_on:
+      api:
+        condition: service_healthy

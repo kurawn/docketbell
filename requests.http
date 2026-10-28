@@ -1,0 +1,58 @@
+@api = http://localhost:8000/api/v1
+@alice = Token demo-alice-token
+@bob = Token demo-bob-token
+
+### List my matters
+GET {{api}}/matters/
+Authorization: {{alice}}
+
+### Create a matter (creator becomes the responsible attorney)
+POST {{api}}/matters/
+Authorization: {{alice}}
+Content-Type: application/json
+
+{"reference": "GB-2026-0007", "title": "Folding bicycle hinge", "kind": "patent"}
+
+### Add a member
+POST {{api}}/matters/<matter-id>/members/
+Authorization: {{alice}}
+Content-Type: application/json
+
+{"username": "bob", "role": "assistant"}
+
+### Create a deadline (custom offsets)
+POST {{api}}/matters/<matter-id>/deadlines/
+Authorization: {{alice}}
+Content-Type: application/json
+
+{"kind": "office_action_response", "title": "Respond to search report", "nominal_date": "2026-12-26", "reminder_offsets": [15, 5, 1]}
+
+### Upcoming deadlines across my matters
+GET {{api}}/deadlines/?status=open&due_before=2026-12-31
+Authorization: {{alice}}
+
+### Move a deadline (cancels pending reminders and replans)
+PATCH {{api}}/deadlines/<deadline-id>/
+Authorization: {{alice}}
+Content-Type: application/json
+
+{"nominal_date": "2027-01-08"}
+
+### Reminder schedule and delivery status
+GET {{api}}/deadlines/<deadline-id>/reminders/
+Authorization: {{alice}}
+
+### Acknowledge (cancels the escalation)
+POST {{api}}/deadlines/<deadline-id>/acknowledge/
+Authorization: {{bob}}
+
+### Complete (cancels remaining reminders)
+PATCH {{api}}/deadlines/<deadline-id>/
+Authorization: {{alice}}
+Content-Type: application/json
+
+{"status": "completed"}
+
+### Sandbox inbox
+GET http://localhost:8001/sandbox/v1/messages
+Authorization: Bearer sandbox-dev-key
